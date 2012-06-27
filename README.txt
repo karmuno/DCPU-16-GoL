@@ -1,0 +1,16 @@
+--------------------------------------------
+Title:   GameOfLife
+Author:  karmuno
+Date:    6/26/2012
+Version: 1.0.0
+--------------------------------------------
+
+In Conway's Game of Life, the user selects certain cells on an infinite grid as "alive" and others as "dead." The game then proceeds by switching the status of the cells turn-by-turn in the following manner: Live cells with less than two neighbors become dead (under-population, or loneliness if you prefer), live cells with two or three neighbors live on, and live cells with more than three neighbors die (over-population), while a dead cell with exactly three neighbors comes alive (reproduction, although the implications of a three-way being necessary to create life are beyond the scope of this little simulation). In this way, a very simple model that ostensibly mimics the spread of life is created, and very complicated patterns can arise from very simple rules.
+
+This particular program models the Game of Life on the 32x12 grid, with the assumption that all cells beyond the perimeter determined by the screen are dead. This could likely be expanded to a 64x48 cell grid with some added work using something like Benedek93's pixel graphics, which can be found on YouTube. Perhaps some enterprising soul may even be able to get a 128x96 game going, if she can find a way to draw individual pixels, rather than 2x2 pixels as demonstrated in Benedek93's video. I imagine, though, that the limited amount of memory available may become a problem, though I'm sure there are some clever work-arounds.
+
+As the grid is limited in scope, and not truly infinite, the program can not be a "pure" simulation of the mathematically defined Game of Life. Indeed, to the best of my knowledge, it is impossible to simulate the infinite grid on a computer at all; most modern programs can get around this by making the actual simulated space huge. We don't have that luxury on the DCPU-16 (at least until we get an official disc spec that'll let us do virtual memory and other stuff I only pretend to understand so I look cool on the internet). As such, this is a fun little applet, and might be an interesting diversion when you're floating through space with your engines fried and you're other computers are dedicated to sending out distress calls using the 517 different communications protocols that are going to arise, but this does not claim to be anything more than a diversion.
+ 
+This program not released under any license and is considered public domain. You may use this program however you want, I'm not going to stop you. Hell, you can even sell it if you find someone stupid enough to pay for it. Go right ahead. Just note that there's no warantee or guarantee or anything on this software, and if it destroys your computer or sends your ship spiraling into a black hole or sleeps with your girlfriend it is officially not my fault. It probably won't do any of those things, but you never know.
+
+Also keep in mind that this code was put together in the space of about an hour and a half, and is probably (definitely) absurdly inefficient and full of meaningless commands and poor habits. I can right now think of about a dozen ways I could do things better, but I'll leave that to more skilled programmers, if they so desire.
