@@ -1,0 +1,356 @@
+; --------------------------------------------
+; Title:   GameOfLife
+; Author:  karmuno
+; Date:    6/26/2012
+; Version: 1.0.0
+; --------------------------------------------
+
+; In Conway's Game of Life, the user selects certain cells on an infinite grid as "alive" and
+; others as "dead." The game then proceeds by switching the status of the cells turn-by-turn
+; in the following manner: Live cells with less than two neighbors become dead (under-population,
+; or loneliness if you prefer), live cells with two or three neighbors live on, and live cells
+; with more than three neighbors die (over-population), while a dead cell with exactly three
+; neighbors comes alive (reproduction, although the implications of a three-way being necessary
+; to create life are beyond the scope of this little simulation). In this way, a very simple
+; model that ostensibly mimics the spread of life is created, and very complicated patterns
+; can arise from very simple rules.
+
+; This particular program models the Game of Life on the 32x12 grid, with the assumption that
+; all cells beyond the perimeter determined by the screen are dead. This could likely be expanded
+; to a 64x48 cell grid with some added work using something like Benedek93's pixel graphics,
+; which can be found on YouTube. Perhaps some enterprising soul may even be able to get a 128x96
+; game going, if she can find a way to draw individual pixels, rather than 2x2 pixels as demonstrated
+; in Benedek93's video. I imagine, though, that the limited amount of memory available may become a
+; problem, though I'm sure there are some clever work-arounds.
+
+; As the grid is limited in scope, and not truly infinite, the program can not be a "pure" simulation
+; of the mathematically defined Game of Life. Indeed, to the best of my knowledge, it is impossible
+; to simulate the infinite grid on a computer at all; most modern programs can get around this by making
+; the actual simulated space huge. We don't have that luxury on the DCPU-16 (at least until we get
+; an official disc spec that'll let us do virtual memory and other stuff I only pretend to understand
+; so I look cool on the internet). As such, this is a fun little applet, and might be an interesting
+; diversion when you're floating through space with your engines fried and you're other computers are
+; dedicated to sending out distress calls using the 517 different communications protocols that are
+; going to arise, but this does not claim to be anything more than a diversion.
+
+; This program not released under any license and is considered public domain. You may use this program
+; however you want, I'm not going to stop you. Hell, you can even sell it if you find someone stupid
+; enough to pay for it. Go right ahead. Just note that there's no warantee or guarantee or anything
+; on this software, and if it destroys your computer or sends your ship spiraling into a black hole
+; or sleeps with your girlfriend it is officially not my fault. It probably won't do any of those things,
+; but you never know.
+
+; Also keep in mind that this code was put together in the space of about an hour and a half, and is probably
+; (definitely) absurdly inefficient and full of meaningless commands and poor habits. I can right now think of
+; about a dozen ways I could do things better, but I'll leave that to more skilled programmers, if they
+; so desire.
+
+
+
+; Some boilerplate code to read in the three input devices (display, keyboard, and clock) and store their
+; values. Taken from lowey2002's excellent Crash course in the 1.5 hardware interrupts post the 0x10c forum
+
+; Find the display
+:get_display
+add [display_address], 1
+hwq [display_address]
+ifn a, 0xf615      ; ID for the LEM1802 monitor
+  set pc, get_display
+  
+; Find the keyboard
+:get_keyboard
+add [keyboard_address], 1
+hwq [keyboard_address]
+ifn a, 0x7406      ; ID for the keyboard
+  set pc, get_keyboard
+  
+; Find the clock
+:get_clock
+add [clock_address], 1
+hwq [clock_address]
+ifn a, 0xb402      ; ID for the clock
+  set pc, get_clock
+
+; There are two pre-set board types. The first, "glider" creates a glider
+; that moves across the screen until hitting the edge, where the limitations
+; of the finite grid show themselves, and it becomes a stationary square. The
+; second, "oscillator" demonstrates three different formations that oscillate
+; in place at a period of two. If you wish to experiment at this time you must
+; manually set the appropriate memory locations as 0x0f20.
+:setBoard
+	set pc, glider	; change this to "oscillator" to demonstrate several
+					; oscillating patterns.
+
+
+:glider
+	set b, [vm_address]
+	set [b+1], 0x0f20
+	set [b+64], 0x0f20
+	set [b+65], 0x0f20
+	set [b+66], 0x0f20
+	set [b+34], 0x0f20
+	set pc, turnLoop
+	
+:oscillator
+	set b, [vm_address]
+	set [b+67], 0x0f20
+	set [b+68], 0x0f20
+	set [b+69], 0x0f20
+	
+	set [b+143], 0x0f20
+	set [b+144], 0x0f20
+	set [b+145], 0x0f20
+	set [b+112], 0x0f20
+	set [b+113], 0x0f20
+	set [b+114], 0x0f20
+	
+	set [b+256], 0x0f20
+	set [b+257], 0x0f20
+	set [b+288], 0x0f20
+	set [b+323], 0x0f20
+	set [b+354], 0x0f20
+	set [b+355], 0x0f20
+	set pc, turnLoop
+  
+
+:turnLoop
+	set a, 0
+	set b, [vm_address]
+	hwi [display_address]
+	set i, 0	; i is the position of the current cell relative to vm_address
+	set push, 0	; all of these zeroes represent the empty cells surrounding the grid
+	set push, 0
+	set push, 0
+	set push, 0
+	set push, 0
+	set push, [b+1]	; cell to the right
+	set push, [b+32]	; cell below
+	set push, [b+33]	; cell below and to the right
+	set a, [b]
+	jsr checkCell
+	set b, [vm_buffer]
+	add b, i
+	set [b], a
+	add i, 1
+	;This checks every cell in the top row barring the corners
+	:topLoop
+		set b, [vm_address]
+		add b, i
+		set a, [b]
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, [b-1]	; left cell
+		set push, [b+1]	; right cell
+		set push, [b+31]	; bottom left cell
+		set push, [b+32]	; bottom cell
+		set push, [b+33]	; bottom right cell
+		jsr checkCell
+		set b, [vm_buffer]
+		add b, i
+		set [b], a
+		add i, 1
+		ifg 31, i
+			set pc, topLoop
+	; Now we check the top-right corner cell
+	set b, [vm_address]
+	add b, i
+	set a, [b]
+	set push, 0
+	set push, 0
+	set push, 0
+	set push, 0
+	set push, 0
+	set push, [b-1]	; left cell
+	set push, [b+31]	; bottom left cell
+	set push, [b+32]	; bottom cell
+	jsr checkCell
+	set b, [vm_buffer]
+	add b, i
+	set [b], a
+	add i, 1
+	; Check the middle 10 rows
+	:rowLoop
+		set b, [vm_address]
+		add b, i
+		set a, [b]
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, [b-32]	; top cell
+		set push, [b-31]	; top right cell
+		set push, [b+1]		; right cell
+		set push, [b+32]	; bottom cell
+		set push, [b+33]	; bottom right cell
+		jsr checkCell
+		set b, [vm_buffer]
+		add b, i
+		set [b], a
+		add i, 1
+		set j, 0
+		; Check all of the non-edge values
+		:middleLoop
+			set b, [vm_address]
+			add b, i
+			set a, [b]
+			set push, [b-33]	; top left cell
+			set push, [b-32]	; top cell
+			set push, [b-31]	; top right cell
+			set push, [b-1]		; left cell
+			set push, [b+1]		; right cell
+			set push, [b+31]	; bottom left cell
+			set push, [b+32]	; bottom cell
+			set push, [b+33]	; bottom right cell
+			jsr checkCell
+			set b, [vm_buffer]
+			add b, i
+			set [b], a
+			add i, 1
+			add j, 1
+			ifg 30, j
+				set pc, middleLoop
+		; Check the cell on the right
+		set b, [vm_address]
+		add b, i
+		set a, [b]
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, [b-33]	; top left cell
+		set push, [b-32]	; top cell
+		set push, [b-1]		; left cell
+		set push, [b+31]	; bottom left cell
+		set push, [b+32]	; bottom cell
+		jsr checkCell
+		set b, [vm_buffer]
+		add b, i
+		set [b], a
+		add i, 1
+		ifg 352, i
+			set pc, rowLoop
+		; Check the bottom left corner
+		set b, [vm_address]
+		add b, i
+		set a, [b]
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, [b-32]	; top cell
+		set push, [b-31]	; top right cell
+		set push, [b+1]		; right cell
+		jsr checkCell
+		set b, [vm_buffer]
+		add b, i
+		set [b], a
+		add i, 1
+		; Check the bottom row, barring corners
+		:bottomLoop
+			set b, [vm_address]
+			add b, i
+			set a, [b]
+			set push, 0
+			set push, 0
+			set push, 0
+			set push, [b-33]	; top left cell
+			set push, [b-32]	; top cell
+			set push, [b-31]	; top right cell
+			set push, [b-1]		; left cell
+			set push, [b+1]		; right cell
+			jsr checkCell
+			set b, [vm_buffer]
+			add b, i
+			set [b], a
+			add i, 1
+			ifg 384, i
+			set pc, bottomLoop
+		; Check the last cell
+		set b, [vm_address]
+		add b, i
+		set a, [b]
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, 0
+		set push, [b-33]	; top left cell
+		set push, [b-32]	; top cell
+		set push, [b-1]		; left cell
+		jsr checkCell
+		set b, [vm_buffer]
+		add b, i
+		set [b], a
+		set a, [vm_address]
+		set b, [vm_buffer]
+		set [vm_buffer], a
+		set [vm_address], b
+			; If the user wishes to step through each stage manually, simply uncomment
+			; the loop below. However, it moves slowly enough, and stabilizes so quickly,
+			; that this is probably unnecessary.
+		;:keyLoop
+		;	set a, 1
+		;	hwi [keyboard_address]
+		;	ife c, 0
+		;		set pc, keyLoop
+		set pc, turnLoop
+	
+
+; Accepts the current value of a cell in the A register, and the eight surrounding cells on the stack. 
+; Returns the new value of the cell in the A register. Clobbers A, B, and C.
+:checkCell
+	set b, pop
+	ife a, 0x0f20
+		set pc, checkLive
+	set c, 0
+	set a, 0
+	:deadLoop
+		add a, pop	; add the adjacent cell value to a, which is 0
+		add c, 1
+		ifg 8, c
+			set pc, deadLoop
+	set c, 0
+	ife a, 0x2d60	; if three adjacent cells are alive
+		set c, 0x0f20	; set a to alive
+	set a, c
+	set push, b
+	set pc, pop
+	
+	:checkLive
+		set c, 0
+		set a, 0
+		:liveLoop
+			add a, pop	; add the adjacent cell value to a, which is 0
+			add c, 1
+			ifg 8, c
+				set pc, liveLoop
+		set c, 0
+		ife a, 0x1e40	;if two adjacent cells are alive
+			set c, 0x0f20	; set a to alive
+		ife a, 0x2d60	; if three adjacent cells are alive	
+			set c, 0x0f20	; set a to alive
+		set a, c
+		set push, b
+		set pc, pop			
+	
+:hang
+	set PC, hang
+
+
+
+; Data
+
+:display_address
+DAT 0xFFFF
+
+:keyboard_address
+DAT 0xFFFF
+
+:clock_address
+DAT 0xFFFF
+
+:vm_address		; Address of current screen
+DAT 0x8000
+
+:vm_buffer		; Address of buffer screen
+DAT 0x7000
